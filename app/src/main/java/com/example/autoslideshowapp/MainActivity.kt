@@ -10,15 +10,16 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.provider.MediaStore
 import android.content.ContentUris
+import android.database.Cursor
 import kotlinx.android.synthetic.main.activity_main.*
+import java.lang.Long.parseLong
 import java.util.*
+import kotlin.collections.ArrayList
 
 class MainActivity : AppCompatActivity()  {
 
     private val PERMISSIONS_REQUEST_CODE = 100
 
-    var imageID :Long = 0
-    var imageIDFirst :Long =0
     var count = 0
 
     //Timer
@@ -28,6 +29,8 @@ class MainActivity : AppCompatActivity()  {
     private var mTimerSec = 0.0
 
     private var mHandler = Handler()
+
+    var arr = arrayListOf<Long>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,19 +67,18 @@ class MainActivity : AppCompatActivity()  {
                         override fun run() {
                             mTimerSec += 0.1
                             mHandler.post {
-                                //timer.text = String.format("%.1f", mTimerSec)
-                                if (imageID > 0) {
-                                    imageID = imageID + 1
-                                }
-                                if(imageID == imageIDFirst+count)
+                                if(arr.count()>0)
                                 {
-                                    imageID=imageIDFirst
+                                    count++
+
+                                    if(count==arr.size)
+                                    {
+                                        count=0
+                                    }
+
+                                    val imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, arr[count])
+                                    imageView.setImageURI(imageUri)
                                 }
-                                val imageUri = ContentUris.withAppendedId(
-                                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                                    imageID
-                                )
-                                imageView.setImageURI(imageUri)
                             }
                         }
                     }, 2000, 2000) // 最初に始動させるまで 100ミリ秒、ループの間隔を 100ミリ秒 に設定
@@ -94,46 +96,37 @@ class MainActivity : AppCompatActivity()  {
 
         button2.setOnClickListener {
             Log.d("進む","次のピクチャーを表示")
+            if(arr.count()>0)
+            {
+                count++
 
-            //if (cursor!!.moveToLast())
-            //{
-            //    val imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, imageIDFirst)
-            //    imageView.setImageURI(imageUri)
-            //}else {
-
-                if (imageID > 0) {
-                    imageID = imageID + 1
-                }
-                if(imageID == imageIDFirst+count)
+                if(count==arr.size)
                 {
-                    imageID=imageIDFirst
+                    count=0
                 }
-                val imageUri = ContentUris.withAppendedId(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    imageID
-                )
+
+                val imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, arr[count])
                 imageView.setImageURI(imageUri)
-            //}
+            }
 
         }
 
         button3.setOnClickListener {
             Log.d("戻る","前のピクチャーを表示")
 
-
-
-            if(imageID == imageIDFirst)
+            if(arr.count()>0)
             {
-                imageID=imageIDFirst+count-1
-            }else
-            {
-                if(imageID > 0){
-                    imageID = imageID-1
+                if(count==0)
+                {
+                    count=arr.size
                 }
-            }
+                count--
 
-            val imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, imageID)
-            imageView.setImageURI(imageUri)
+                val imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, arr[count])
+                imageView.setImageURI(imageUri)
+
+
+            }
         }
     }
 
@@ -147,6 +140,11 @@ class MainActivity : AppCompatActivity()  {
     }
 
     private fun getContentsInfo() {
+
+        button1.setEnabled(true)
+        button2.setEnabled(true)
+        button3.setEnabled(true)
+
         // 画像の情報を取得する
         val resolver = contentResolver
         val cursor = resolver.query(
@@ -156,15 +154,25 @@ class MainActivity : AppCompatActivity()  {
             null, // フィルタ用パラメータ
             null // ソート (null ソートなし)
         )
+
+        if (cursor != null) {
+            if(cursor.getCount()>0)
+            {
+                while (cursor.moveToNext()) {
+                    val fieldIndex = cursor.getColumnIndex(MediaStore.Images.Media._ID)
+                    val id = cursor.getLong(fieldIndex)
+                    arr.add(id)
+                }
+
+            }
+        }
+
         if (cursor!!.moveToFirst()) {
-            count = cursor.count
             // indexからIDを取得し、そのIDから画像のURIを取得する
             val fieldIndex = cursor.getColumnIndex(MediaStore.Images.Media._ID)
             val id = cursor.getLong(fieldIndex)
             val imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
 
-            imageID = id;
-            imageIDFirst = id;
             imageView.setImageURI(imageUri)
         }
         cursor.close()
